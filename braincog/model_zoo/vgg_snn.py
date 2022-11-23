@@ -79,7 +79,7 @@ class SNN7_tiny(BaseModule):
 @register_model
 class SNN5(BaseModule):
     def __init__(self,
-                 num_classes=10,
+                 num_classes=100,
                  step=8,
                  node_type=LIFNode,
                  encode_type='direct',
@@ -114,7 +114,7 @@ class SNN5(BaseModule):
         )
         self.fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(512 * 3 * 3, self.num_classes),
+            nn.Linear(512 * 2 * 2, self.num_classes),
         )
 
     def forward(self, inputs):
@@ -157,27 +157,27 @@ class VGG_SNN(BaseModule):
         if issubclass(self.node, BaseNode):
             self.node = partial(self.node, **kwargs, step=step)
 
-        self.dataset = kwargs['dataset']
-        if not is_dvs_data(self.dataset):
-            raise NotImplementedError('VGG-SNN model is only for DVS data, but current datasets is {}'.format(self.dataset))
+        # self.dataset = kwargs['dataset']
+#         if not is_dvs_data(self.dataset):
+#             raise NotImplementedError('VGG-SNN model is only for DVS data, but current datasets is {}'.format(self.dataset))
 
         self.feature = nn.Sequential(
-            BaseConvModule(2, 64, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            BaseConvModule(3, 16, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            BaseConvModule(16, 32, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            nn.AvgPool2d(2),
+            BaseConvModule(32, 64, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            BaseConvModule(64, 64, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            nn.AvgPool2d(2),
             BaseConvModule(64, 128, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            BaseConvModule(128, 128, kernel_size=(3, 3), padding=(1, 1), node=self.node),
             nn.AvgPool2d(2),
-            BaseConvModule(128, 256, kernel_size=(3, 3), padding=(1, 1), node=self.node),
-            BaseConvModule(256, 256, kernel_size=(3, 3), padding=(1, 1), node=self.node),
-            nn.AvgPool2d(2),
-            BaseConvModule(256, 512, kernel_size=(3, 3), padding=(1, 1), node=self.node),
-            BaseConvModule(512, 512, kernel_size=(3, 3), padding=(1, 1), node=self.node),
-            nn.AvgPool2d(2),
-            BaseConvModule(512, 512, kernel_size=(3, 3), padding=(1, 1), node=self.node),
-            BaseConvModule(512, 512, kernel_size=(3, 3), padding=(1, 1), node=self.node),
-            nn.AvgPool2d(2),
+            BaseConvModule(128, 128, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            BaseConvModule(128, 128, kernel_size=(3, 3), padding=(1, 1), node=self.node),
+            nn.AdaptiveAvgPool2d((1,1)),
         )
         self.fc = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(512 * 3 * 3, self.num_classes),
+            nn.Linear(128, self.num_classes),
         )
 
     def forward(self, inputs):
@@ -199,3 +199,14 @@ class VGG_SNN(BaseModule):
                 outputs.append(x)
 
             return sum(outputs) / len(outputs)
+
+
+if __name__ == '__main__':
+    from thop import profile
+    model = VGG_SNN()
+    img = torch.randn([1,3,224,224])
+    # y = model(img)
+
+    flops, params = profile(model, inputs=(img,))
+    print('FLOPs = ' + str(flops/1000**3) + 'G')
+    print('Params = ' + str(params/1000**2) + 'M')
